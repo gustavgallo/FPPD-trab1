@@ -70,17 +70,51 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 
 	switch temp.tipo {
 	
-	case 0: // propagação de eleição
+	case 0: // eleição
 		{
-			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
-			controle <- -5
+			if !bFailed{
+				fmt.Printf("%2d: Propago Eleicao", TaskId)
+				temp.corpo[TaskId] = TaskId
+				out <- temp 
+				controle <- -5
+			}
+			else {
+				fmt.Printf("%2d: Propago Eleicao, Estou Morto", TaskId)
+				temp.corpo[TaskId] = -1
+				out <- temp
+				controle <- -5
+			}
 		}
 	case 1: // começa a eleição 
 		{
-			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
-			controle <- -5
+			if !bFailed{
+				fmt.Printf("%2d: Comeco Eleicao", TaskId)
+				temp.tipo = 0
+				temp.corpo[TaskId] = TaskId
+				
+				out <- temp
+				
+				recebi := <-in
+				novoLider := recebi.corpo[0]
+				for i := 1; i < 3; i++ {
+					if(temp.corpo[i] > novoLider){
+						novoLider = temp.corpo[i]
+					}
+				}
+
+				recebi.tipo = 4
+				actualLeader = novoLider
+
+				fmt.Printf("%2d: Meu Lider e %2d", TaskId, actualLeader)
+
+				out <- recebi
+
+				controle <- -5
+			}
+			else {
+				ftm.Printf("TO MORTO, NAO POSSO")
+				controle <- -5
+			}
 		}	
 	case 2: // mata o processo
 		{
@@ -95,6 +129,26 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
 			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
 			controle <- -5
+		}
+	case 4: // confirma lider
+		{
+				recebi := <-in
+				novoLider := recebi.corpo[0]
+
+				for i := 0; i < 4; i++ {
+					if(recebi.corpo[i] > novoLider){
+						novoLider = temp.corpo[i]
+					}
+				}
+
+				recebi.tipo = 4
+				actualLeader = novoLider
+
+				fmt.Printf("%2d: Meu Lider -> %2d", TaskId, actualLeader)
+
+				out <- recebi
+
+				controle <- -5
 		}
 
 		
