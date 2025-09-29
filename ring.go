@@ -11,6 +11,7 @@ import (
 type mensagem struct {
 	tipo  int    // 0 para matar 
 	corpo [3]int // conteudo da mensagem para colocar os ids (usar um tamanho ocmpativel com o numero de processos no anel)
+	attLider int
 }
 
 var (
@@ -28,6 +29,7 @@ func ElectionControler(in chan int) {
 	defer wg.Done()
 
 	var temp mensagem
+	var lider int
 
 	// comandos para o anel iniciam aqui
 
@@ -41,17 +43,15 @@ func ElectionControler(in chan int) {
 
 	// mudar o processo 1 - canal de entrada 0 - para falho (defini mensagem tipo 2 pra isto)
 
-	temp.tipo = 2
+	temp.tipo = 1
 	chans[0] <- temp
-	fmt.Printf("Controle: mudar o processo 1 para falho\n")
+	fmt.Printf("Controle: manda 1 começar eleição\n")
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
 	// matar os outrs processos com mensagens não conhecidas (só pra cosumir a leitura)
-
-	temp.tipo = 4
-	chans[1] <- temp
-	chans[2] <- temp
-
+	
+	
+	fmt.Println("\n   Lider escolhido : %d \n", lider)
 	fmt.Println("\n   Processo controlador concluído\n")
 }
 
@@ -70,15 +70,22 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 
 	switch temp.tipo {
 	
+		// 0 == eleicao 
+		// 1 == inicia eleicao
+		// 2 == mata
+		// 3 == revive
+		// 4 == termina eleicao
+
 	case 0: // eleição
 		{
-			if !bFailed{
+			if !bFailed	{
 				fmt.Printf("%2d: Propago Eleicao", TaskId)
 				temp.corpo[TaskId] = TaskId
 				out <- temp 
 				controle <- -5
 			}
-			else {
+			else 
+			{
 				fmt.Printf("%2d: Propago Eleicao, Estou Morto", TaskId)
 				temp.corpo[TaskId] = -1
 				out <- temp
@@ -87,7 +94,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 		}
 	case 1: // começa a eleição 
 		{
-			if !bFailed{
+			if !bFailed	{
 				fmt.Printf("%2d: Comeco Eleicao", TaskId)
 				temp.tipo = 0
 				temp.corpo[TaskId] = TaskId
@@ -95,7 +102,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 				out <- temp
 				
 				recebi := <-in
-				novoLider := recebi.corpo[0]
+				novoLider = recebi.corpo[0]
 				for i := 1; i < 3; i++ {
 					if(temp.corpo[i] > novoLider){
 						novoLider = temp.corpo[i]
@@ -103,13 +110,16 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 				}
 
 				recebi.tipo = 4
+				recebi.attLider = novoLider
 				actualLeader = novoLider
 
 				fmt.Printf("%2d: Meu Lider e %2d", TaskId, actualLeader)
 
 				out <- recebi
+				
+				<- in
 
-				controle <- -5
+				controle <- novoLider
 			}
 			else {
 				ftm.Printf("TO MORTO, NAO POSSO")
@@ -131,24 +141,15 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			controle <- -5
 		}
 	case 4: // confirma lider
-		{
-				recebi := <-in
-				novoLider := recebi.corpo[0]
+		{	
+				recebi <- in
 
-				for i := 0; i < 4; i++ {
-					if(recebi.corpo[i] > novoLider){
-						novoLider = temp.corpo[i]
-					}
-				}
-
-				recebi.tipo = 4
-				actualLeader = novoLider
+				actualLeader = recebi.attLider
 
 				fmt.Printf("%2d: Meu Lider -> %2d", TaskId, actualLeader)
 
 				out <- recebi
 
-				controle <- -5
 		}
 
 		
