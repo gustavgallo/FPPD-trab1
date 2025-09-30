@@ -9,8 +9,8 @@ import (
 )
 
 type mensagem struct {
-	tipo  int    // 0 para matar 
-	corpo [3]int // conteudo da mensagem para colocar os ids (usar um tamanho ocmpativel com o numero de processos no anel)
+	tipo     int    // 0 para matar
+	corpo    [4]int // conteudo da mensagem para colocar os ids (usar um tamanho ocmpativel com o numero de processos no anel)
 	attLider int
 }
 
@@ -41,18 +41,23 @@ func ElectionControler(in chan int) {
 
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
-	// mudar o processo 1 - canal de entrada 0 - para falho (defini mensagem tipo 2 pra isto)
+	// mudar o processo 1 - canal de entrada 0 - para iniciar eleição
 
 	temp.tipo = 1
 	chans[0] <- temp
 	fmt.Printf("Controle: manda 1 começar eleição\n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+	lider = <-in // receber confirmação
+	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
 
-	// matar os outrs processos com mensagens não conhecidas (só pra cosumir a leitura)
-	
-	
-	fmt.Println("\n   Lider escolhido : %d \n", lider)
-	fmt.Println("\n   Processo controlador concluído\n")
+	// matar os outros processos com mensagens de término
+	temp.tipo = 999
+	for i := 0; i < 4; i++ {
+		chans[i] <- temp
+	}
+
+	fmt.Printf("\n   Lider escolhido : %d \n", lider)
+	fmt.Printf("\n   Processo controlador concluído\n")
+
 }
 
 func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) {
@@ -65,102 +70,109 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 
 	actualLeader = leader // indicação do lider veio por parâmatro
 
-	temp := <-in // ler mensagem
-	fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2])
+	for {
+		temp := <-in // ler mensagem
+		fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3])
 
-	switch temp.tipo {
-	
-		// 0 == eleicao 
+		switch temp.tipo {
+
+		// 0 == eleicao
 		// 1 == inicia eleicao
 		// 2 == mata
 		// 3 == revive
 		// 4 == termina eleicao
 
-	case 0: // eleição
-		{
-			if !bFailed	{
-				fmt.Printf("%2d: Propago Eleicao", TaskId)
-				temp.corpo[TaskId] = TaskId
-				out <- temp 
-				controle <- -5
-			}
-			else 
+		case 0: // eleição
 			{
-				fmt.Printf("%2d: Propago Eleicao, Estou Morto", TaskId)
-				temp.corpo[TaskId] = -1
-				out <- temp
-				controle <- -5
-			}
-		}
-	case 1: // começa a eleição 
-		{
-			if !bFailed	{
-				fmt.Printf("%2d: Comeco Eleicao", TaskId)
-				temp.tipo = 0
-				temp.corpo[TaskId] = TaskId
-				
-				out <- temp
-				
-				recebi := <-in
-				novoLider = recebi.corpo[0]
-				for i := 1; i < 3; i++ {
-					if(temp.corpo[i] > novoLider){
-						novoLider = temp.corpo[i]
-					}
+				if !bFailed {
+					fmt.Printf("%2d: Propago Eleicao\n", TaskId)
+					temp.corpo[TaskId] = TaskId
+				} else {
+					fmt.Printf("%2d: Propago Eleicao, Estou Morto\n", TaskId)
+					temp.corpo[TaskId] = -1
 				}
+				out <- temp
 
-				recebi.tipo = 4
-				recebi.attLider = novoLider
-				actualLeader = novoLider
-
-				fmt.Printf("%2d: Meu Lider e %2d", TaskId, actualLeader)
-
-				out <- recebi
-				
-				<- in
-
-				controle <- novoLider
 			}
-			else {
-				ftm.Printf("TO MORTO, NAO POSSO")
+		case 1: // começa a eleição
+			{
+				if !bFailed {
+					fmt.Printf("%2d: Comeco Eleicao\n", TaskId)
+					temp.tipo = 0
+					temp.corpo[TaskId] = TaskId
+
+					out <- temp
+
+					// Esperar a mensagem voltar com todos os IDs
+					recebi := <-in
+
+					// Só processar se for uma mensagem de eleição que voltou
+					if recebi.tipo == 0 {
+						var novoLider int
+						novoLider = recebi.corpo[0]
+						for i := 1; i <= 3; i++ {
+							if recebi.corpo[i] > novoLider && recebi.corpo[i] != -1 {
+								novoLider = recebi.corpo[i]
+							}
+						}
+
+						// Enviar mensagem de confirmação de líder
+						recebi.tipo = 4
+						recebi.attLider = novoLider
+						actualLeader = novoLider
+
+						fmt.Printf("%2d: Meu Lider e %2d\n", TaskId, actualLeader)
+
+						out <- recebi
+
+						controle <- novoLider
+					} else {
+						// Se não for uma mensagem de eleição, repassar
+						out <- recebi
+						controle <- -5
+					}
+				} else {
+					fmt.Printf("%2d: TO MORTO, NAO POSSO\n", TaskId)
+					controle <- -5
+				}
+			}
+		case 2: // mata o processo
+			{
+				bFailed = true
+				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
+				fmt.Printf("%2d: lider atual %d \n", TaskId, actualLeader)
 				controle <- -5
 			}
-		}	
-	case 2: // mata o processo
-		{
-			bFailed = true
-			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
-			controle <- -5
-		}
-	case 3: // revive o processo
-		{
-			bFailed = false
-			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
-			controle <- -5
-		}
-	case 4: // confirma lider
-		{	
-				recebi <- in
-
-				actualLeader = recebi.attLider
-
-				fmt.Printf("%2d: Meu Lider -> %2d", TaskId, actualLeader)
-
-				out <- recebi
-
-		}
-
-		
-	default:
-		{
-			fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+		case 3: // revive o processo
+			{
+				bFailed = false
+				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
+				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+				controle <- -5
+			}
+		case 4: // confirma lider
+			{
+				if !bFailed {
+					actualLeader = temp.attLider
+					fmt.Printf("%2d: Meu Lider -> %2d\n", TaskId, actualLeader)
+					out <- temp
+				} else {
+					fmt.Printf("%2d: Recebi confirmacao de lider mas estou morto\n", TaskId)
+					// Processo morto não repassa a mensagem de confirmação
+				}
+			}
+		case 999: // terminar processo
+			{
+				fmt.Printf("%2d: terminei \n", TaskId)
+				return
+			}
+		default:
+			{
+				fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
+				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+			}
 		}
 	}
-
-	fmt.Printf("%2d: terminei \n", TaskId)
 }
 
 func main() {
@@ -180,7 +192,7 @@ func main() {
 
 	go ElectionControler(controle)
 
-	fmt.Println("\n   Processo controlador criado\n")
+	fmt.Println("\n   Processo controlador criado")
 
 	wg.Wait() // Wait for the goroutines to finish\
 }
