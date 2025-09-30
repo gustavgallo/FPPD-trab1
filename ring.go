@@ -36,16 +36,16 @@ func ElectionControler(in chan int) {
 	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
 
 	temp.tipo = 2
-	chans[3] <- temp
 	fmt.Printf("Controle: mudar o processo 0 para falho\n")
+	chans[3] <- temp
 
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
 	// mudar o processo 1 - canal de entrada 0 - para iniciar eleição
 
 	temp.tipo = 1
-	chans[0] <- temp
 	fmt.Printf("Controle: manda 1 começar eleição\n")
+	chans[0] <- temp
 	lider = <-in // receber confirmação
 	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
 
@@ -148,7 +148,8 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 						fmt.Printf("%2d: Meu Lider e %2d\n", TaskId, actualLeader)
 
 						out <- recebi
-
+						<- in // esperar o OK
+						// informar o controle quem é o novo líder
 						controle <- novoLider
 					} else {
 						// Se não for uma mensagem de eleição, repassar
@@ -175,35 +176,8 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			}
 		case 4: // confirma lider
 			{
-				if !bFailed {
-					actualLeader = temp.attLider
-					fmt.Printf("%2d: Meu Lider -> %2d\n", TaskId, actualLeader)
-					// Só repassa se não for o processo que iniciou a eleição
-					// Usa o campo corpo para identificar quem iniciou
-					iniciador := -1
-					for i := 0; i < 4; i++ {
-						if temp.corpo[i] == i {
-							iniciador = i
-							break
-						}
-					}
-					if TaskId != iniciador {
-						out <- temp
-					}
-				} else {
-					fmt.Printf("%2d: Recebi confirmacao de lider mas estou morto\n", TaskId)
-					// Processos mortos repassam para não bloquear
-					iniciador := -1
-					for i := 0; i < 4; i++ {
-						if temp.corpo[i] == i {
-							iniciador = i
-							break
-						}
-					}
-					if TaskId != iniciador {
-						out <- temp
-					}
-				}
+					fmt.Printf("%2d: Meu Lider -> %2d\n", TaskId, temp.attLider)
+					out <- temp
 			}
 		case 999: // terminar processo
 			{
