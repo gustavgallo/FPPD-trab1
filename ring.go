@@ -49,6 +49,29 @@ func ElectionControler(in chan int) {
 	lider = <-in // receber confirmação
 	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
 
+	//revive o 0
+	temp.tipo = 3
+	chans[3] <- temp
+	fmt.Printf("Controle: revive processo 0\n")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+
+	//mata o 1 e o 3
+	temp.tipo = 2
+	chans[0] <- temp
+	fmt.Printf("Controle: mata processo 1\n")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+
+	chans[2] <- temp
+	fmt.Printf("Controle: mata processo 3\n")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+
+	//manda o 0 começar eleição
+	temp.tipo = 1
+	chans[3] <- temp
+	fmt.Printf("Controle: manda 0 começar eleição\n")
+	lider = <-in // receber confirmação
+	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
+
 	// matar os outros processos com mensagens de término
 	temp.tipo = 999
 	for i := 0; i < 4; i++ {
@@ -81,6 +104,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 		// 2 == mata
 		// 3 == revive
 		// 4 == termina eleicao
+		// 999 == finaliza
 
 		case 0: // eleição
 			{
@@ -147,7 +171,6 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			{
 				bFailed = false
 				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
 				controle <- -5
 			}
 		case 4: // confirma lider
@@ -155,10 +178,31 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 				if !bFailed {
 					actualLeader = temp.attLider
 					fmt.Printf("%2d: Meu Lider -> %2d\n", TaskId, actualLeader)
-					out <- temp
+					// Só repassa se não for o processo que iniciou a eleição
+					// Usa o campo corpo para identificar quem iniciou
+					iniciador := -1
+					for i := 0; i < 4; i++ {
+						if temp.corpo[i] == i {
+							iniciador = i
+							break
+						}
+					}
+					if TaskId != iniciador {
+						out <- temp
+					}
 				} else {
 					fmt.Printf("%2d: Recebi confirmacao de lider mas estou morto\n", TaskId)
-					// Processo morto não repassa a mensagem de confirmação
+					// Processos mortos repassam para não bloquear
+					iniciador := -1
+					for i := 0; i < 4; i++ {
+						if temp.corpo[i] == i {
+							iniciador = i
+							break
+						}
+					}
+					if TaskId != iniciador {
+						out <- temp
+					}
 				}
 			}
 		case 999: // terminar processo
