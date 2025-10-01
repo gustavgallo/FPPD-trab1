@@ -36,50 +36,101 @@ func ElectionControler(in chan int) {
 	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
 
 	temp.tipo = 2
-	fmt.Printf("Controle: mudar o processo 0 para falho\n")
-	chans[3] <- temp
+	fmt.Printf("Controle: mudar o processo 3 para falho\n")
+	fmt.Println("===============================================")
+	chans[2] <- temp
 
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+	fmt.Println("===============================================")
 
-	// mudar o processo 1 - canal de entrada 0 - para iniciar eleição
+	// mudar o processo 0 - canal de entrada 3 - para iniciar eleição
 
 	temp.tipo = 1
-	fmt.Printf("Controle: manda 1 começar eleição\n")
-	chans[0] <- temp
+	fmt.Printf("Controle: manda 0 começar eleição\n")
+	fmt.Println("===============================================")
+
+	chans[3] <- temp
 	lider = <-in // receber confirmação
 	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
+	fmt.Println("===============================================")
 
-	//revive o 0
+	//revive o 3
 	temp.tipo = 3
-	chans[3] <- temp
-	fmt.Printf("Controle: revive processo 0\n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	chans[2] <- temp
+	fmt.Printf("Controle: revive processo 3\n")
+	fmt.Println("===============================================")
 
-	//mata o 1 e o 3
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	fmt.Println("===============================================")
+
+	//mata o 1 e o 2
 	temp.tipo = 2
 	chans[0] <- temp
 	fmt.Printf("Controle: mata processo 1\n")
+	fmt.Println("===============================================")
+
 	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	fmt.Println("===============================================")
+
+	chans[1] <- temp
+	fmt.Printf("Controle: mata processo 2\n")
+	fmt.Println("===============================================")
+
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	fmt.Println("===============================================")
+
+	//manda o 3 começar eleição
+	temp.tipo = 1
+	chans[2] <- temp
+	fmt.Printf("Controle: manda 3 começar eleição\n")
+	fmt.Println("===============================================")
+
+	lider = <-in // receber confirmação
+	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
+	fmt.Println("===============================================")
+
+	//mata todos processos, menos o 0
+	temp.tipo = 2
+	chans[0] <- temp
+	fmt.Printf("Controle: mata processo 1\n")
+	fmt.Println("===============================================")
+
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	fmt.Println("===============================================")
+
+	chans[1] <- temp
+	fmt.Printf("Controle: mata processo 2\n")
+	fmt.Println("===============================================")
+
+	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	fmt.Println("===============================================")
 
 	chans[2] <- temp
 	fmt.Printf("Controle: mata processo 3\n")
+	fmt.Println("===============================================")
+
 	fmt.Printf("Controle: confirmação %d\n", <-in) // esperar confirmação
+	fmt.Println("===============================================")
 
 	//manda o 0 começar eleição
 	temp.tipo = 1
 	chans[3] <- temp
 	fmt.Printf("Controle: manda 0 começar eleição\n")
+	fmt.Println("===============================================")
+
 	lider = <-in // receber confirmação
 	fmt.Printf("Controle: confirmação - novo lider %d\n", lider)
+	fmt.Println("===============================================")
 
-	// matar os outros processos com mensagens de término
+	fmt.Printf("\n   Lider escolhido : %d \n", lider)
+	fmt.Printf("\nProcesso controlador concluído, matando sub-rotinas\n")
+	fmt.Println("===============================================")
+
+	// matar todos os  processos com mensagens de término
 	temp.tipo = 999
 	for i := 0; i < 4; i++ {
 		chans[i] <- temp
 	}
-
-	fmt.Printf("\n   Lider escolhido : %d \n", lider)
-	fmt.Printf("\n   Processo controlador concluído\n")
 
 }
 
@@ -109,11 +160,15 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 		case 0: // eleição
 			{
 				if !bFailed {
-					fmt.Printf("%2d: Propago Eleicao\n", TaskId)
 					temp.corpo[TaskId] = TaskId
+					fmt.Printf("%2d: Propago Eleição\n", TaskId)
+					fmt.Printf("%2d: CORPO ATUALIZADO -> [ %d, %d, %d, %d ]\n", TaskId, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3])
+					fmt.Println("-----------------------------------------------")
 				} else {
-					fmt.Printf("%2d: Propago Eleicao, Estou Morto\n", TaskId)
 					temp.corpo[TaskId] = -1
+					fmt.Printf("%2d: Propago Eleição, Estou Morto\n", TaskId)
+					fmt.Printf("%2d: CORPO ATUALIZADO -> [ %d, %d, %d, %d ]\n", TaskId, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3])
+					fmt.Println("-----------------------------------------------")
 				}
 				out <- temp
 
@@ -121,9 +176,12 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 		case 1: // começa a eleição
 			{
 				if !bFailed {
-					fmt.Printf("%2d: Comeco Eleicao\n", TaskId)
-					temp.tipo = 0
 					temp.corpo[TaskId] = TaskId
+
+					fmt.Printf("%2d: Começo Eleição\n", TaskId)
+					fmt.Printf("%2d: CORPO ATUALIZADO -> [ %d, %d, %d, %d ]\n", TaskId, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3])
+					fmt.Println("-----------------------------------------------")
+					temp.tipo = 0
 
 					out <- temp
 
@@ -145,10 +203,12 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 						recebi.attLider = novoLider
 						actualLeader = novoLider
 
-						fmt.Printf("%2d: Meu Lider e %2d\n", TaskId, actualLeader)
+						fmt.Printf("%2d: Meu Lider é%2d\n", TaskId, actualLeader)
+						fmt.Printf("%2d: Propago a escolha do Líder!\n", TaskId)
+						fmt.Println("-----------------------------------------------")
 
 						out <- recebi
-						<- in // esperar o OK
+						<-in // esperar o OK
 						// informar o controle quem é o novo líder
 						controle <- novoLider
 					} else {
@@ -157,37 +217,50 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 						controle <- -5
 					}
 				} else {
-					fmt.Printf("%2d: TO MORTO, NAO POSSO\n", TaskId)
+					fmt.Printf("%2d: Estou morto, não posso realizar eleição\n", TaskId)
 					controle <- -5
 				}
 			}
 		case 2: // mata o processo
 			{
-				bFailed = true
-				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d \n", TaskId, actualLeader)
-				controle <- -5
+				if !bFailed {
+					bFailed = true
+					fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
+					fmt.Printf("%2d: lider atual %d \n", TaskId, actualLeader)
+					fmt.Println("-----------------------------------------------")
+					controle <- -5
+				} else {
+					fmt.Printf("%2d: já estou falho!! \n", TaskId)
+					fmt.Printf("%2d: lider atual %d \n", TaskId, actualLeader)
+					fmt.Println("-----------------------------------------------")
+					controle <- -5
+
+				}
 			}
 		case 3: // revive o processo
 			{
 				bFailed = false
 				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
+				fmt.Println("-----------------------------------------------")
 				controle <- -5
 			}
 		case 4: // confirma lider
 			{
-					fmt.Printf("%2d: Meu Lider -> %2d\n", TaskId, temp.attLider)
-					out <- temp
+				fmt.Printf("%2d: Meu Lider -> %2d\n", TaskId, temp.attLider)
+				fmt.Println("-----------------------------------------------")
+				out <- temp
 			}
 		case 999: // terminar processo
 			{
 				fmt.Printf("%2d: terminei \n", TaskId)
+
 				return
 			}
 		default:
 			{
 				fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
 				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+				fmt.Println("-----------------------------------------------")
 			}
 		}
 	}
@@ -199,12 +272,13 @@ func main() {
 
 	// criar os processo do anel de eleicao
 
-	go ElectionStage(0, chans[3], chans[0], 0) // este é o lider
-	go ElectionStage(1, chans[0], chans[1], 0) // não é lider, é o processo 0
-	go ElectionStage(2, chans[1], chans[2], 0) // não é lider, é o processo 0
-	go ElectionStage(3, chans[2], chans[3], 0) // não é lider, é o processo 0
+	go ElectionStage(0, chans[3], chans[0], 3) // este é o lider
+	go ElectionStage(1, chans[0], chans[1], 3) // não é lider, é o processo 0
+	go ElectionStage(2, chans[1], chans[2], 3) // não é lider, é o processo 0
+	go ElectionStage(3, chans[2], chans[3], 3) // não é lider, é o processo 0
 
 	fmt.Println("\n   Anel de processos criado")
+	fmt.Println()
 
 	// criar o processo controlador
 
